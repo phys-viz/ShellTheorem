@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Gauss's Law – Spherical Shell</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@300;400;600;700&display=swap');
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background:#080c12; color:#b8ccd8;
+    font-family:'Share Tech Mono', monospace;
+    display:flex; height:100vh; overflow:hidden;
+  }
+  #canvas-container { flex:1; position:relative; cursor:default; }
+  #canvas-container canvas { display:block; }
+
+  #hint {
+    position:absolute; bottom:16px; left:50%; transform:translateX(-50%);
+    background:rgba(8,12,18,0.85); border:1px solid #1e3a5f;
+    padding:6px 14px; font-size:11px; color:#4a7090;
+    letter-spacing:0.5px; pointer-events:none; white-space:nowrap;
+  }
+
+  #sidebar {
+    width:270px; background:#080f1a;
+    border-left:1px solid #1a3050;
+    display:flex; flex-direction:column; overflow:hidden;
+  }
+  #sidebar-header {
+    padding:16px 18px 12px; border-bottom:1px solid #1a3050; background:#060b14;
+  }
+  #sidebar-header h1 {
+    font-family:'Rajdhani',sans-serif; font-weight:700;
+    font-size:20px; color:#69f0ae; letter-spacing:3px; text-transform:uppercase;
+  }
+  #sidebar-header p { font-size:10px; color:#334455; letter-spacing:1px; margin-top:2px; }
+
+  #sidebar-body {
+    flex:1; overflow-y:auto; padding:14px 16px;
+    display:flex; flex-direction:column; gap:18px;
+  }
+  #sidebar-body::-webkit-scrollbar { width:4px; }
+  #sidebar-body::-webkit-scrollbar-thumb { background:#1e3a5f; }
+
+  .section-label {
+    font-size:9px; color:#3a5570; letter-spacing:2px;
+    text-transform:uppercase; margin-bottom:7px;
+  }
+
+  .slider-group { display:flex; flex-direction:column; gap:8px; }
+  .slider-row { display:flex; align-items:center; gap:10px; }
+  .slider-label { font-size:10px; color:#3a5570; width:64px; flex-shrink:0; }
+  input[type=range] {
+    flex:1; -webkit-appearance:none; height:2px;
+    background:#1a3050; outline:none; cursor:pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance:none; width:12px; height:12px;
+    background:#69f0ae; cursor:pointer;
+    clip-path:polygon(50% 0%,100% 50%,50% 100%,0% 50%);
+  }
+  .slider-val { font-size:11px; color:#69f0ae; min-width:56px; text-align:right; }
+
+  #results {
+    background:#040810; border:1px solid #1a3050; overflow:hidden;
+  }
+  .result-row {
+    display:flex; justify-content:space-between; align-items:center;
+    padding:6px 10px; border-bottom:1px solid #0d1e30; font-size:11px;
+  }
+  .result-row:last-child { border-bottom:none; }
+  .result-key { color:#3a5570; }
+  .result-val { color:#7fbfdf; }
+  .result-val.yellow { color:#ffd54f; }
+  .result-val.blue   { color:#64b5f6; }
+  .result-val.green  { color:#69f0ae; }
+  .result-val.white  { color:#e0e0e0; }
+
+  .divider { border:none; border-top:1px solid #0d1e30; margin:0; }
+
+  .legend-row {
+    display:flex; align-items:center; gap:8px;
+    font-size:10px; color:#3a5570; padding:3px 0;
+  }
+  .leg-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+
+  .info-box {
+    background:#040810; border:1px solid #1a3050;
+    padding:8px 10px; font-size:10px; color:#2a5570;
+    line-height:1.7;
+  }
+</style>
+</head>
+<body>
+
+<div id="canvas-container">
+  <div id="hint">DRAG the white sphere to move the observation point</div>
+</div>
+
+<div id="sidebar">
+  <div id="sidebar-header">
+    <h1>Gauss's Law</h1>
+    <p>Spherical Shell · E-Field Explorer</p>
+  </div>
+
+  <div id="sidebar-body">
+
+    <!-- Legend -->
+    <div>
+      <div class="section-label">Legend</div>
+      <div class="legend-row"><div class="leg-dot" style="background:#ff5555"></div>Protons (outside view)</div>
+      <div class="legend-row"><div class="leg-dot" style="background:#ffd54f"></div>Yellow dome (dot product ≥ 0)</div>
+      <div class="legend-row"><div class="leg-dot" style="background:#64b5f6"></div>Blue dome (dot product &lt; 0)</div>
+      <div class="legend-row"><div class="leg-dot" style="background:#ffffff"></div>Observation point</div>
+    </div>
+
+    <hr class="divider">
+
+    <!-- Sliders -->
+    <div>
+      <div class="section-label">Parameters</div>
+      <div class="slider-group">
+        <div class="slider-row">
+          <span class="slider-label">Protons N</span>
+          <input type="range" id="sl-n" min="100" max="5000" value="1000" step="100" oninput="onNChange(this)">
+          <span class="slider-val" id="val-n">1000</span>
+        </div>
+        <div class="slider-row">
+          <span class="slider-label">E Scale</span>
+          <input type="range" id="sl-scale" min="10" max="500" value="100" step="10" oninput="onScaleChange(this)">
+          <span class="slider-val" id="val-scale">100×</span>
+        </div>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <!-- Results -->
+    <div>
+      <div class="section-label">Results</div>
+      <div id="results">
+        <div class="result-row">
+          <span class="result-key">Location</span>
+          <span class="result-val white" id="res-loc">—</span>
+        </div>
+        <div class="result-row">
+          <span class="result-key">r (m)</span>
+          <span class="result-val white" id="res-r">—</span>
+        </div>
+        <div class="result-row">
+          <span class="result-key">E yellow dome</span>
+          <span class="result-val yellow" id="res-ey">—</span>
+        </div>
+        <div class="result-row">
+          <span class="result-key">E blue dome</span>
+          <span class="result-val blue" id="res-eb">—</span>
+        </div>
+        <div class="result-row">
+          <span class="result-key">E net (N/C)</span>
+          <span class="result-val green" id="res-en">—</span>
+        </div>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <div class="info-box">
+      Inside a perfect spherical shell the two domes cancel exactly → E_net ≈ 0.<br>
+      Outside the shell behaves like a point charge.
+    </div>
+
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ═══════════════════════════════════════
+//  CONSTANTS
+// ═══════════════════════════════════════
+const k   = 9e9;
+const q   = 1.6e-19;
+const R   = 1.0;   // shell radius (world units)
+
+let N     = 1000;
+let scale = 100;
+
+// ═══════════════════════════════════════
+//  RENDERER / SCENE / CAMERA
+// ═══════════════════════════════════════
+const container = document.getElementById('canvas-container');
+const getW = () => container.clientWidth;
+const getH = () => container.clientHeight;
+
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(getW(), getH());
+renderer.setClearColor(0x080c12);
+container.appendChild(renderer.domElement);
+
+const scene  = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, getW()/getH(), 0.01, 100);
+camera.position.set(0, 0, 3.8);
+camera.lookAt(0, 0, 0);
+
+// Lighting (minimal – everything is MeshBasicMaterial so no shading needed)
+scene.add(new THREE.AmbientLight(0xffffff, 1));
+
+// ── OrbitControls (manual lightweight impl) ───────────
+let orbitActive = false, orbitStart = { x:0, y:0 };
+let spherical   = { theta: 0.4, phi: 1.1, r: 3.8 };
+
+function updateCamera() {
+  camera.position.set(
+    spherical.r * Math.sin(spherical.phi) * Math.sin(spherical.theta),
+    spherical.r * Math.cos(spherical.phi),
+    spherical.r * Math.sin(spherical.phi) * Math.cos(spherical.theta)
+  );
+  camera.lookAt(0,0,0);
+}
+updateCamera();
+
+// ═══════════════════════════════════════
+//  SHELL WIREFRAME
+// ═══════════════════════════════════════
+const shellGeo = new THREE.SphereGeometry(R, 32, 32);
+const shellMat = new THREE.MeshBasicMaterial({
+  color:0x1a3050, wireframe:true, transparent:true, opacity:0.18
+});
+const shellMesh = new THREE.Mesh(shellGeo, shellMat);
+scene.add(shellMesh);
+
+// ═══════════════════════════════════════
+//  PROTON POINT CLOUD
+// ═══════════════════════════════════════
+// We'll store positions in a Float32Array and colors separately
+// Use THREE.Points for performance
+
+let protonPositions = [];   // flat [x,y,z, ...]
+let protonGeo, protonMesh;
+
+function buildShell(n) {
+  const a      = 4*Math.PI / n;
+  const d      = Math.sqrt(a);
+  const Mtheta = Math.round(Math.PI / d);
+  const dtheta = Math.PI / Mtheta;
+  const dphi   = a / dtheta;
+
+  protonPositions = [];
+  for (let m = 0; m < Mtheta; m++) {
+    const theta = Math.PI * (m + 0.5) / Mtheta;
+    const Mphi  = Math.round(2 * Math.PI * Math.sin(theta) / dphi);
+    for (let nn = 0; nn < Mphi; nn++) {
+      const phi = 2 * Math.PI * nn / Mphi;
+      protonPositions.push(
+        R * Math.sin(theta) * Math.cos(phi),
+        R * Math.sin(theta) * Math.sin(phi),
+        R * Math.cos(theta)
+      );
+    }
+  }
+}
+
+function rebuildProtonMesh() {
+  if (protonMesh) scene.remove(protonMesh);
+
+  const pos    = new Float32Array(protonPositions);
+  const colors = new Float32Array(protonPositions.length);
+  // default red
+  for (let i = 0; i < colors.length; i += 3) {
+    colors[i]=1; colors[i+1]=0.33; colors[i+2]=0.33;
+  }
+
+  protonGeo = new THREE.BufferGeometry();
+  protonGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  protonGeo.setAttribute('color',    new THREE.BufferAttribute(colors, 3));
+
+  protonMesh = new THREE.Points(protonGeo, new THREE.PointsMaterial({
+    size: 0.025, vertexColors: true, sizeAttenuation: true
+  }));
+  scene.add(protonMesh);
+}
+
+// ═══════════════════════════════════════
+//  OBSERVATION POINT
+// ═══════════════════════════════════════
+const obsMat  = new THREE.MeshBasicMaterial({ color:0xffffff });
+const obsGeo  = new THREE.SphereGeometry(0.04, 16, 16);
+const obsMesh = new THREE.Mesh(obsGeo, obsMat);
+obsMesh.position.set(0, 0, 0);
+scene.add(obsMesh);
+
+// ═══════════════════════════════════════
+//  ARROWS (E-FIELD)
+// ═══════════════════════════════════════
+let arrowY = null, arrowB = null, arrowN = null;
+
+function makeArrow(color) {
+  const dir = new THREE.Vector3(1,0,0);
+  const org = new THREE.Vector3(0,0,0);
+  return new THREE.ArrowHelper(dir, org, 0.001, color, 0.08, 0.05);
+}
+
+function initArrows() {
+  if (arrowY) { scene.remove(arrowY); scene.remove(arrowB); scene.remove(arrowN); }
+  arrowY = makeArrow(0xffd54f);
+  arrowB = makeArrow(0x64b5f6);
+  arrowN = makeArrow(0x69f0ae);
+  scene.add(arrowY); scene.add(arrowB); scene.add(arrowN);
+}
+
+function setArrow(arr, pos, ex, ey, ez, s) {
+  const len = Math.sqrt(ex*ex + ey*ey + ez*ez);
+  arr.position.copy(pos);
+  if (len < 1e-30) { arr.setLength(0.0001); return; }
+  arr.setDirection(new THREE.Vector3(ex/len, ey/len, ez/len));
+  const dispLen = Math.min(Math.max(len * s, 0.02), 2.5);
+  arr.setLength(dispLen, Math.min(dispLen*0.3, 0.15), Math.min(dispLen*0.15, 0.09));
+}
+
+// ═══════════════════════════════════════
+//  PHYSICS UPDATE
+// ═══════════════════════════════════════
+function updateEField() {
+  const ox = obsMesh.position.x;
+  const oy = obsMesh.position.y;
+  const oz = obsMesh.position.z;
+  const r  = Math.sqrt(ox*ox + oy*oy + oz*oz);
+
+  const pos = new Float32Array(protonGeo.attributes.position.array);
+  const col = protonGeo.attributes.color.array;
+
+  let eyX=0,eyY=0,eyZ=0, ebX=0,ebY=0,ebZ=0;
+  const nPts = pos.length / 3;
+  const inside = r < R && r > 0.001;
+  const r2obs  = r * r;
+
+  for (let i = 0; i < nPts; i++) {
+    const px = pos[i*3], py = pos[i*3+1], pz = pos[i*3+2];
+    const dx = ox-px, dy = oy-py, dz = oz-pz;
+    const d2 = dx*dx + dy*dy + dz*dz;
+    const d  = Math.sqrt(d2);
+    const Emag = k * q / d2;
+    const ex = Emag * dx/d, ey = Emag * dy/d, ez = Emag * dz/d;
+
+    if (inside) {
+      // dot(proton_pos, obs_pos) >= |obs|^2
+      const dotProd = px*ox + py*oy + pz*oz;
+      if (dotProd >= r2obs) {
+        col[i*3]=1; col[i*3+1]=0.835; col[i*3+2]=0.31; // yellow
+        eyX+=ex; eyY+=ey; eyZ+=ez;
+      } else {
+        col[i*3]=0.39; col[i*3+1]=0.71; col[i*3+2]=0.96; // blue
+        ebX+=ex; ebY+=ey; ebZ+=ez;
+      }
+    } else {
+      col[i*3]=1; col[i*3+1]=0.33; col[i*3+2]=0.33; // red
+      eyX+=ex; eyY+=ey; eyZ+=ez;
+    }
+  }
+
+  protonGeo.attributes.color.needsUpdate = true;
+
+  const obsPos = obsMesh.position;
+  const s = scale * 1e4;  // field values are tiny (Coulomb units), scale up
+
+  if (inside) {
+    arrowY.visible = true;
+    arrowB.visible = true;
+    setArrow(arrowY, obsPos, eyX, eyY, eyZ, s);
+    setArrow(arrowB, obsPos, ebX, ebY, ebZ, s);
+    setArrow(arrowN, obsPos, eyX+ebX, eyY+ebY, eyZ+ebZ, s);
+
+    document.getElementById('res-ey').textContent = fmtE(Math.sqrt(eyX*eyX+eyY*eyY+eyZ*eyZ));
+    document.getElementById('res-eb').textContent = fmtE(Math.sqrt(ebX*ebX+ebY*ebY+ebZ*ebZ));
+    document.getElementById('res-en').textContent = fmtE(Math.sqrt((eyX+ebX)**2+(eyY+ebY)**2+(eyZ+ebZ)**2));
+    document.getElementById('res-loc').textContent = 'INSIDE';
+  } else {
+    arrowY.visible = false;
+    arrowB.visible = false;
+    const enx=eyX, eny=eyY, enz=eyZ;
+    setArrow(arrowN, obsPos, enx, eny, enz, s);
+
+    document.getElementById('res-ey').textContent = '—';
+    document.getElementById('res-eb').textContent = '—';
+    document.getElementById('res-en').textContent = fmtE(Math.sqrt(enx*enx+eny*eny+enz*enz));
+    document.getElementById('res-loc').textContent = r < 0.001 ? 'ORIGIN' : 'OUTSIDE';
+  }
+
+  document.getElementById('res-r').textContent = r.toFixed(3) + ' m';
+}
+
+function fmtE(v) {
+  if (v < 1e-30) return '≈ 0';
+  return v.toExponential(3) + ' N/C';
+}
+
+// ═══════════════════════════════════════
+//  DRAG OBS POINT
+// ═══════════════════════════════════════
+const raycaster   = new THREE.Raycaster();
+const dragPlane   = new THREE.Plane();
+const dragTarget  = new THREE.Vector3();
+let   dragging    = false;
+
+// We'll drag on a plane facing the camera
+function getNDC(e) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  return new THREE.Vector2(
+    ((e.clientX - rect.left) / rect.width)  * 2 - 1,
+   -((e.clientY - rect.top)  / rect.height) * 2 + 1
+  );
+}
+
+function hitObs(e) {
+  raycaster.setFromCamera(getNDC(e), camera);
+  const hits = raycaster.intersectObject(obsMesh);
+  return hits.length > 0;
+}
+
+renderer.domElement.addEventListener('mousedown', e => {
+  if (e.button !== 0) return;
+  if (hitObs(e)) {
+    dragging = true;
+    // drag plane through obs point, facing camera
+    const normal = camera.position.clone().normalize();
+    dragPlane.setFromNormalAndCoplanarPoint(normal, obsMesh.position);
+    container.style.cursor = 'grabbing';
+    e.stopPropagation();
+  } else {
+    // orbit
+    orbitActive = true;
+    orbitStart  = { x: e.clientX, y: e.clientY };
+  }
+});
+
+renderer.domElement.addEventListener('mousemove', e => {
+  if (dragging) {
+    raycaster.setFromCamera(getNDC(e), camera);
+    raycaster.ray.intersectPlane(dragPlane, dragTarget);
+    // Clamp to inside+outside reasonably
+    const maxR = 2.5;
+    if (dragTarget.length() > maxR) dragTarget.setLength(maxR);
+    obsMesh.position.copy(dragTarget);
+    updateEField();
+  } else if (orbitActive) {
+    const dx = (e.clientX - orbitStart.x) * 0.008;
+    const dy = (e.clientY - orbitStart.y) * 0.008;
+    spherical.theta -= dx;
+    spherical.phi    = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi + dy));
+    orbitStart = { x: e.clientX, y: e.clientY };
+    updateCamera();
+  }
+});
+
+renderer.domElement.addEventListener('mouseup', () => {
+  dragging = orbitActive = false;
+  container.style.cursor = 'default';
+});
+
+renderer.domElement.addEventListener('wheel', e => {
+  spherical.r = Math.max(1.5, Math.min(8, spherical.r + e.deltaY * 0.005));
+  updateCamera();
+});
+
+// ═══════════════════════════════════════
+//  SLIDERS
+// ═══════════════════════════════════════
+function onNChange(el) {
+  N = parseInt(el.value);
+  document.getElementById('val-n').textContent = N;
+  buildShell(N);
+  rebuildProtonMesh();
+  initArrows();
+  updateEField();
+}
+
+function onScaleChange(el) {
+  scale = parseFloat(el.value);
+  document.getElementById('val-scale').textContent = scale + '×';
+  updateEField();
+}
+
+// ═══════════════════════════════════════
+//  RESIZE
+// ═══════════════════════════════════════
+window.addEventListener('resize', () => {
+  renderer.setSize(getW(), getH());
+  camera.aspect = getW() / getH();
+  camera.updateProjectionMatrix();
+});
+
+// ═══════════════════════════════════════
+//  INIT & RENDER LOOP
+// ═══════════════════════════════════════
+buildShell(N);
+rebuildProtonMesh();
+initArrows();
+updateEField();
+
+function animate() {
+  requestAnimationFrame(animate);
+  renderer.render(scene, camera);
+}
+animate();
+</script>
+</body>
+</html>
